@@ -1,12 +1,9 @@
 {
-    "name": "Crossoverse.Core.Domain.SignalStreaming",
-    "rootNamespace": "",
+    "name": "Crossoverse.SignalStreaming.Infrastructure.Unity",
+    "rootNamespace": "Crossoverse.SignalStreaming.Infrastructure.Unity",
     "references": [
-        "UniTask",
-        "MessagePipe",
-        "MessagePack",
-        "MessagePack.Annotations",
-        "Crossoverse.Transports"
+        "Crossoverse.SignalStreaming",
+        "Crossoverse.SignalStreaming.Infrastructure"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
