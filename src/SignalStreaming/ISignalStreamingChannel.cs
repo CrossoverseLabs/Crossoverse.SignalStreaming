@@ -3,7 +3,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using MessagePipe;
 
-namespace Crossoverse.Core.Domain.SignalStreaming
+namespace Crossoverse.SignalStreaming
 {
     public interface ISignalStreamingChannel : IDisposable
     {

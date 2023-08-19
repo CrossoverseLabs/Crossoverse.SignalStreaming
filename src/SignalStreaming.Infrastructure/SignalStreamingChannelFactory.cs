@@ -1,7 +1,7 @@
-using Crossoverse.Core.Domain.SignalStreaming;
+using Crossoverse.SignalStreaming;
 using MessagePipe;
 
-namespace Crossoverse.Core.Infrastructure.SignalStreaming
+namespace Crossoverse.SignalStreaming.Infrastructure
 {
     public sealed class SignalStreamingChannelFactory : ISignalStreamingChannelFactory
     {

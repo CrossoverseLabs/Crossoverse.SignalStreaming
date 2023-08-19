@@ -1,12 +1,11 @@
 using System;
-using Crossoverse.Core.Configuration;
-using Crossoverse.Core.Domain.SignalStreaming;
+using Crossoverse.SignalStreaming;
 using Crossoverse.Toolkit.Transports;
 #if CROSSOVERSE_PHOTON_TRANSPORT
 using Crossoverse.Toolkit.Transports.PhotonRealtime;
 #endif
 
-namespace Crossoverse.Core.Infrastructure.SignalStreaming
+namespace Crossoverse.SignalStreaming.Infrastructure
 {
     public sealed class TransportFactory : ITransportFactory
     {

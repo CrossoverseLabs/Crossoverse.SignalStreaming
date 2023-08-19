@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Crossoverse.Core.Configuration;
-using Crossoverse.Core.Domain.SignalStreaming;
+using Crossoverse.SignalStreaming;
 using Crossoverse.Core.Infrastructure.SignalStreaming;
 using UnityEngine;
 
-namespace Crossoverse.Core.Unity.Infrastructure.SignalStreaming
+namespace Crossoverse.SignalStreaming.Infrastructure.Unity
 {
     [CreateAssetMenu(
         menuName = "Crossoverse/LocalRepository/" + nameof(TransportConfigLocalRepository),

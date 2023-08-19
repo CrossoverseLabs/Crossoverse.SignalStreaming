@@ -1,6 +1,6 @@
 using MessagePipe;
 
-namespace Crossoverse.Core.Domain.SignalStreaming
+namespace Crossoverse.SignalStreaming
 {
     public interface IHighFreqSignalStreamingChannel : ISignalStreamingChannel
     {

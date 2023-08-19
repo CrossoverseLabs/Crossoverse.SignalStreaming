@@ -3,13 +3,13 @@ using System.Buffers;
 using System.Threading;
 using Crossoverse.Toolkit.Transports;
 using Crossoverse.Toolkit.Serialization;
-using Crossoverse.Core.Domain.SignalStreaming;
-using Crossoverse.Core.Domain.SignalStreaming.BufferedSignal;
+using Crossoverse.SignalStreaming;
+using Crossoverse.SignalStreaming.BufferedSignal;
 using Cysharp.Threading.Tasks;
 using MessagePack;
 using MessagePipe;
 
-namespace Crossoverse.Core.Infrastructure.SignalStreaming
+namespace Crossoverse.SignalStreaming.Infrastructure
 {
     public sealed class BufferedSignalStreamingChannel : IBufferedSignalStreamingChannel
     {

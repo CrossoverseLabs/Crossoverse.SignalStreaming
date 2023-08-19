@@ -1,7 +1,7 @@
 using System;
 using MessagePack;
 
-namespace Crossoverse.Core.Domain.SignalStreaming.BufferedSignal
+namespace Crossoverse.SignalStreaming.BufferedSignal
 {
     [MessagePackObject]
     public sealed class CreateObjectSignal : IBufferedSignal

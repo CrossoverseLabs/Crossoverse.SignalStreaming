@@ -1,7 +1,7 @@
 using System;
 using MessagePack;
 
-namespace Crossoverse.Core.Domain.SignalStreaming.LowFreqSignal
+namespace Crossoverse.SignalStreaming.LowFreqSignal
 {
     [MessagePackObject]
     public sealed class DestroyObjectSignal : ILowFreqSignal

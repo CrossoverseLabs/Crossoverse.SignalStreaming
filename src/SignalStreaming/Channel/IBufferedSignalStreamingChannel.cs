@@ -1,7 +1,7 @@
 using System;
 using MessagePipe;
 
-namespace Crossoverse.Core.Domain.SignalStreaming
+namespace Crossoverse.SignalStreaming
 {
     public interface IBufferedSignalStreamingChannel : ISignalStreamingChannel
     {

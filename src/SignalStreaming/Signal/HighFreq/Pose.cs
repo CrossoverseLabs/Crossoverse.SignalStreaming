@@ -2,7 +2,7 @@ using System;
 using MessagePack;
 using UnityEngine;
 
-namespace Crossoverse.Core.Domain.SignalStreaming.HighFreqSignal
+namespace Crossoverse.SignalStreaming.HighFreqSignal
 {
     [MessagePackObject]
     public sealed class Pose : IHighFreqSignal

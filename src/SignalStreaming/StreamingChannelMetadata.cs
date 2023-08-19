@@ -1,4 +1,4 @@
-namespace Crossoverse.Core.Domain.SignalStreaming
+namespace Crossoverse.SignalStreaming
 {
     public sealed class StreamingChannelMetadata
     {

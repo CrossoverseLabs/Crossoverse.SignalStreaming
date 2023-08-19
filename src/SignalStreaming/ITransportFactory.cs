@@ -1,6 +1,6 @@
 using Crossoverse.Toolkit.Transports;
 
-namespace Crossoverse.Core.Domain.SignalStreaming
+namespace Crossoverse.SignalStreaming
 {
     public interface ITransportFactory
     {

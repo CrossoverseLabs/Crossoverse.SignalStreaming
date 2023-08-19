@@ -1,6 +1,6 @@
 using System;
 
-namespace Crossoverse.Core.Domain.SignalStreaming
+namespace Crossoverse.SignalStreaming
 {
     public interface IBufferedSignal
     {

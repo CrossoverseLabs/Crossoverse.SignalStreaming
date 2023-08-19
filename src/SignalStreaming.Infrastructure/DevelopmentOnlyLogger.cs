@@ -2,7 +2,7 @@
 #define UNITY_ENGINE
 #endif
 
-namespace Crossoverse.Core.Infrastructure.SignalStreaming
+namespace Crossoverse.SignalStreaming.Infrastructure
 {
     public static class DevelopmentOnlyLogger
     {
