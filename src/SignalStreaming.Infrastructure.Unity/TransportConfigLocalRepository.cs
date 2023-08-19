@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Crossoverse.SignalStreaming;
-using Crossoverse.Core.Infrastructure.SignalStreaming;
+using Crossoverse.SignalStreaming.Infrastructure;
 using UnityEngine;
 
 namespace Crossoverse.SignalStreaming.Infrastructure.Unity
