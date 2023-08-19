@@ -1,0 +1,10 @@
+{
+    "name": "dev.crossoverse.signalstreaming.infrastructure",
+    "displayName": "Crossoverse.SignalStreaming.Infrastructure",
+    "version": "0.1.0",
+    "license": "MIT",
+    "author": "Crossoverse Labs",
+    "dependencies": {
+        "dev.crossoverse.signalstreaming": "0.1.0"
+    }
+}
