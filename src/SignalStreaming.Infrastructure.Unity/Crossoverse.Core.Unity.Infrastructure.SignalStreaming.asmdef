@@ -1,0 +1,18 @@
+{
+    "name": "Crossoverse.Core.Unity.Infrastructure.SignalStreaming",
+    "rootNamespace": "Crossoverse.Core.Unity.Infrastructure.SignalStreaming",
+    "references": [
+        "Crossoverse.Core.Configuration",
+        "Crossoverse.Core.Domain.SignalStreaming",
+        "Crossoverse.Core.Infrastructure.SignalStreaming"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,20 @@
+{
+    "name": "Crossoverse.Core.Domain.SignalStreaming",
+    "rootNamespace": "",
+    "references": [
+        "UniTask",
+        "MessagePipe",
+        "MessagePack",
+        "MessagePack.Annotations",
+        "Crossoverse.Transports"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

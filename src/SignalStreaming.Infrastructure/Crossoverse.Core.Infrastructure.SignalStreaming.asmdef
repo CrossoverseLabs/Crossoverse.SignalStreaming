@@ -1,0 +1,30 @@
+{
+    "name": "Crossoverse.Core.Infrastructure.SignalStreaming",
+    "rootNamespace": "",
+    "references": [
+        "Crossoverse.Core.Configuration",
+        "Crossoverse.Core.Domain.SignalStreaming",
+        "MessagePack",
+        "MessagePipe",
+        "UniTask",
+        "Crossoverse.Toolkit.Serialization",
+        "Crossoverse.Transports",
+        "Crossoverse.Transports.PhotonRealtime",
+        "PhotonRealtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "dev.crossoverse.toolkit.transports.photonrealtime",
+            "expression": "",
+            "define": "CROSSOVERSE_PHOTON_TRANSPORT"
+        }
+    ],
+    "noEngineReferences": false
+}
