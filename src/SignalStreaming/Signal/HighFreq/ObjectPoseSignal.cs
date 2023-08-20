@@ -8,13 +8,13 @@ namespace Crossoverse.SignalStreaming.HighFreqSignal
     public sealed class ObjectPoseSignal : IHighFreqSignal
     {
         [Key(0)]
-        public int InstanceId { get; }
+        public int InstanceId { get; set; }
 
         [Key(1)]
-        public Vector3 Position { get; }
+        public Vector3 Position { get; set; }
 
         [Key(2)]
-        public Quaternion Rotation { get; }
+        public Quaternion Rotation { get; set; }
 
         [Key(3)]
         public Guid GeneratedBy { get; set; }

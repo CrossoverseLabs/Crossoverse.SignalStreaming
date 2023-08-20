@@ -97,7 +97,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
             var signalId = signal switch
             {
-                ObjectPoseSignal _ => (int)SignalType.ObjectPose,
+                ObjectPoseSignal => (int)SignalType.ObjectPose,
                 _ => -1,
             };
 
