@@ -14,5 +14,6 @@ namespace Crossoverse.SignalStreaming
         DestroyObject = LowFreqSignal + 2,
 
         // High Frequency
+        ObjectPose = HighFreqSignal + 1,
     }
 }
