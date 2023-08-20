@@ -1,6 +1,6 @@
 using System;
+using System.Numerics;
 using MessagePack;
-using UnityEngine;
 
 namespace Crossoverse.SignalStreaming.HighFreqSignal
 {
@@ -16,10 +16,10 @@ namespace Crossoverse.SignalStreaming.HighFreqSignal
         [Key(2)]
         public Quaternion Rotation { get; }
 
-        [Key(4)]
+        [Key(3)]
         public Guid GeneratedBy { get; set; }
 
-        [Key(5)]
+        [Key(4)]
         public long OriginTimestampMilliseconds { get; set; }
     }
 }
