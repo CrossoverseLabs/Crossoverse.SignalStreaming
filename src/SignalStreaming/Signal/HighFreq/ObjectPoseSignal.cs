@@ -5,7 +5,7 @@ using MessagePack;
 namespace Crossoverse.SignalStreaming.HighFreqSignal
 {
     [MessagePackObject]
-    public sealed class Pose : IHighFreqSignal
+    public sealed class ObjectPoseSignal : IHighFreqSignal
     {
         [Key(0)]
         public int InstanceId { get; }
