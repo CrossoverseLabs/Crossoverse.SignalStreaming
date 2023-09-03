@@ -31,6 +31,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             if (signalType == SignalType.BufferedSignal)
             {
                 return new BufferedSignalStreamingChannel(channelId, transport, _eventFactory);
+                // return new BufferedSignalStreamingChannelV2(channelId, transport, _eventFactory);
             }
             else
             if (signalType == SignalType.LowFreqSignal)
