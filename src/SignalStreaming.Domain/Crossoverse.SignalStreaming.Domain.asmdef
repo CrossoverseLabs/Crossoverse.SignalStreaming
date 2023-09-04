@@ -2,7 +2,9 @@
     "name": "Crossoverse.SignalStreaming.Domain",
     "rootNamespace": "Crossoverse.SignalStreaming.Domain",
     "references": [
-        "Crossoverse.SignalStreaming"
+        "Crossoverse.SignalStreaming",
+        "MessagePack.Annotations",
+        "MessagePipe"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
