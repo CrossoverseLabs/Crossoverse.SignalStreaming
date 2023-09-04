@@ -9,6 +9,6 @@ namespace Crossoverse.SignalStreaming
 
     public interface ISignalStreamingChannelFactoryV2<TSignalType> where TSignalType : struct, Enum
     {
-        ISignalStreamingChannel Create(string id, TSignalType signalType, StreamingType streamingType);
+        ISignalStreamingChannelV2<TSignalType> Create(string id, TSignalType signalType, StreamingType streamingType);
     }
 }
