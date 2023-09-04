@@ -1,6 +1,6 @@
 {
     "name": "dev.crossoverse.signalstreaming.domain",
-    "displayName": "Crossoverse.SignalStreaming.domain",
+    "displayName": "Crossoverse.SignalStreaming.Domain",
     "version": "0.2.0",
     "license": "MIT",
     "author": "Crossoverse Labs",
