@@ -1,4 +1,4 @@
-namespace Crossoverse.SignalStreaming
+namespace Crossoverse.SignalStreaming.Infrastructure.Unity
 {
     [System.Serializable]
     public sealed class StreamingTransportType
