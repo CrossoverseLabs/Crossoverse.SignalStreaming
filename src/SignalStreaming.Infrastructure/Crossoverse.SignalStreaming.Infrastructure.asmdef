@@ -3,6 +3,7 @@
     "rootNamespace": "Crossoverse.SignalStreaming.Infrastructure",
     "references": [
         "Crossoverse.SignalStreaming",
+        "Crossoverse.SignalStreaming.Domain",
         "MessagePack",
         "MessagePipe",
         "UniTask",
