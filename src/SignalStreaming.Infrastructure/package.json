@@ -5,6 +5,7 @@
     "license": "MIT",
     "author": "Crossoverse Labs",
     "dependencies": {
-        "dev.crossoverse.signalstreaming": "0.1.0"
+        "dev.crossoverse.signalstreaming": "0.2.0",
+        "dev.crossoverse.signalstreaming.domain": "0.2.0"
     }
 }
