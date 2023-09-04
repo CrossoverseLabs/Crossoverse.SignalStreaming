@@ -19,4 +19,19 @@ namespace Crossoverse.SignalStreaming
         UniTask<bool> ConnectAsync(CancellationToken token = default);
         UniTask DisconnectAsync();
     }
+
+    public interface ISignalStreamingChannelV2<TSignalType> : IDisposable where TSignalType : struct, Enum
+    {
+        string Id { get; }
+        TSignalType SignalType { get; }
+        StreamingType StreamingType { get; }
+
+        bool IsConnected { get; }
+        IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }
+
+        void Initialize();
+
+        UniTask<bool> ConnectAsync(CancellationToken token = default);
+        UniTask DisconnectAsync();
+    }
 }

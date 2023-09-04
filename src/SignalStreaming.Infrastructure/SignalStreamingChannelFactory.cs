@@ -3,14 +3,14 @@ using MessagePipe;
 
 namespace Crossoverse.SignalStreaming.Infrastructure
 {
-    public sealed class SignalStreamingChannelFactory : ISignalStreamingChannelFactory
+    public sealed class SignalStreamingChannelFactory : ISignalStreamingChannelFactoryV2<SignalType>
     {
-        private readonly ITransportFactory _transportFactory;
+        private readonly ITransportFactoryV2<SignalType> _transportFactory;
         private readonly EventFactory _eventFactory;
 
         public SignalStreamingChannelFactory
         (
-            ITransportFactory transportFactory,
+            ITransportFactoryV2<SignalType> transportFactory,
             EventFactory eventFactory
         )
         {
