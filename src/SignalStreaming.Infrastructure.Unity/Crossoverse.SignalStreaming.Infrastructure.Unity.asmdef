@@ -3,6 +3,7 @@
     "rootNamespace": "Crossoverse.SignalStreaming.Infrastructure.Unity",
     "references": [
         "Crossoverse.SignalStreaming",
+        "Crossoverse.SignalStreaming.Domain",
         "Crossoverse.SignalStreaming.Infrastructure"
     ],
     "includePlatforms": [],
