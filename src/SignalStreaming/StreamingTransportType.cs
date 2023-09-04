@@ -7,10 +7,4 @@ namespace Crossoverse.SignalStreaming
         public StreamingType StreamingType; // Key2
         public TransportType TransportType; // Value
     }
-
-    public enum TransportType
-    {
-        PhotonRealtime,
-        Grpc,
-    }
 }
