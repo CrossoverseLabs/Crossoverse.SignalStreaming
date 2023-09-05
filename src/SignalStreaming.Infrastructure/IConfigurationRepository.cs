@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace Crossoverse.SignalStreaming
+namespace Crossoverse.SignalStreaming.Infrastructure
 {
     public interface IConfigurationRepository<T>
     {
