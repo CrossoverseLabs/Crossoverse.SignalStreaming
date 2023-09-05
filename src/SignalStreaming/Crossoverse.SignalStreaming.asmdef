@@ -6,7 +6,8 @@
         "MessagePipe",
         "MessagePack",
         "MessagePack.Annotations",
-        "Crossoverse.Transports"
+        "Crossoverse.Transports",
+        "Ulid"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
