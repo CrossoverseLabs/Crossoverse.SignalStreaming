@@ -1,10 +1,11 @@
 using System;
-using System.Buffers; 
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Threading;
-using Crossoverse.Toolkit.Transports;
-using Crossoverse.Toolkit.Serialization;
 using Crossoverse.SignalStreaming;
 using Crossoverse.SignalStreaming.BufferedSignal;
+using Crossoverse.Toolkit.Serialization;
+using Crossoverse.Toolkit.Transports;
 using Cysharp.Threading.Tasks;
 using MessagePack;
 using MessagePipe;
@@ -20,10 +21,11 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         public bool IsConnected => _isConnected;
 
         public IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }
-        public ISubscriber<CreateObjectSignal> OnCreateObjectSignalReceived { get; }
+
+        private static readonly Type TYPE_OF_CREATE_OBJECT_SIGNAL = typeof(CreateObjectSignal);
+        private readonly ConcurrentQueue<CreateObjectSignal> _incomingCreateObjectSignalBuffer = new();
 
         private readonly IDisposableBufferedPublisher<bool> _connectionStatePublisher;
-        private readonly IDisposablePublisher<CreateObjectSignal> _createObjectSignalPublisher;
 
         private readonly IMessageSerializer _messageSerializer = new MessagePackMessageSerializer();
         private readonly ITransport _transport;
@@ -42,12 +44,11 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _id = id;
             _transport = transport;
             (_connectionStatePublisher, ConnectionStateSubscriber) = eventFactory.CreateBufferedEvent<bool>(_isConnected);
-            (_createObjectSignalPublisher, OnCreateObjectSignalReceived) = eventFactory.CreateEvent<CreateObjectSignal>();
         }
 
         public void Initialize()
         {
-            _transport.OnReceiveMessage += OnTransportMessageReceived;
+            _transport.OnReceiveMessage += HandleTransportMessage;
             _initialized = true;
         }
 
@@ -58,10 +59,9 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
         public async UniTask DisposeAsync()
         {
-            _transport.OnReceiveMessage -= OnTransportMessageReceived;
+            _transport.OnReceiveMessage -= HandleTransportMessage;
             await DisconnectAsync();
             _connectionStatePublisher.Dispose();
-            _createObjectSignalPublisher.Dispose();
             DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(BufferedSignalStreamingChannel)}] Disposed.</color>");
         }
 
@@ -97,7 +97,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
             var signalId = signal switch
             {
-                CreateObjectSignal _ => (int)SignalType.CreateObject,
+                CreateObjectSignal _ => (int) SignalType.CreateObject,
                 _ => -1,
             };
 
@@ -131,11 +131,20 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _transport.Send(buffer.WrittenSpan.ToArray(), sendOptions);
         }
 
-        public void RemoveBufferedSignal(SignalType signalType, Guid signalGeneratedBy, object filterKey)
+        public void RemoveBufferedSignal<T>(Guid signalGeneratedBy, object filterKey) where T : IBufferedSignal
         {
+            var signalId = -1;
+
+            if (typeof(T) == TYPE_OF_CREATE_OBJECT_SIGNAL)
+            {
+                signalId = (int) SignalType.CreateObject;
+            }
+
+            if (signalId < 0) throw new ArgumentException($"Unknown signal type");
+
             var bufferingKey = new BufferingKey()
             {
-                FirstKey = (int)signalType,
+                FirstKey = signalId,
                 SecondKey = signalGeneratedBy.ToString(),
                 ThirdKey = filterKey,
             };
@@ -151,9 +160,47 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _transport.Send(null, sendOptions);
         }
 
-        private void OnTransportMessageReceived(byte[] serializedMessage)
+        public ReadOnlySequence<T> ReadIncomingSignals<T>() where T : IBufferedSignal
         {
-            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(BufferedSignalStreamingChannel)}] OnTransportMessageReceived</color>");
+            // References:
+            //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
+            //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
+            //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
+            //
+            if (typeof(T) == TYPE_OF_CREATE_OBJECT_SIGNAL)
+            {
+                if (_incomingCreateObjectSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingCreateObjectSignalBuffer.ToArray();
+                var sequence = new ReadOnlySequence<CreateObjectSignal>(segment);
+                var convertFunc = (Func<ReadOnlySequence<CreateObjectSignal>, ReadOnlySequence<T>>)(object)s_GetCreateObjectSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
+
+            return ReadOnlySequence<T>.Empty;
+        }
+
+        public void DeleteIncomingSignals<T>(long count) where T : IBufferedSignal
+        {
+            if (typeof(T) == TYPE_OF_CREATE_OBJECT_SIGNAL)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingCreateObjectSignalBuffer.TryDequeue(out _);
+                }
+            }
+        }
+
+        // References:
+        //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
+        //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
+        //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
+        //
+        private static Func<ReadOnlySequence<CreateObjectSignal>, ReadOnlySequence<CreateObjectSignal>> s_GetCreateObjectSignalSequence = (param) => param;
+
+        private void HandleTransportMessage(byte[] serializedMessage)
+        {
+            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(BufferedSignalStreamingChannel)}] HandleTransportMessage</color>");
 
             var messagePackReader = new MessagePackReader(serializedMessage);
 
@@ -170,7 +217,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             if ((int)SignalType.CreateObject == signalId)
             {
                 var signal = _messageSerializer.Deserialize<CreateObjectSignal>(new ReadOnlySequence<byte>(serializedMessage, offset, serializedMessage.Length - offset));
-                _createObjectSignalPublisher.Publish(signal);
+                _incomingCreateObjectSignalBuffer.Enqueue(signal);
             }
         }
     }

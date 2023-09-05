@@ -1,12 +1,14 @@
 using System;
+using System.Buffers;
 using MessagePipe;
 
 namespace Crossoverse.SignalStreaming
 {
-    public interface IBufferedSignalStreamingChannel : ISignalStreamingChannel
+    public interface IBufferedSignalStreamingChannel : ISignalStreamingChannel<SignalType>
     {
-        ISubscriber<BufferedSignal.CreateObjectSignal> OnCreateObjectSignalReceived { get; }
         void Send<T>(T signal) where T : IBufferedSignal;
-        void RemoveBufferedSignal(SignalType signalType, Guid signalGeneratedBy, object filterKey);
+        void RemoveBufferedSignal<T>(Guid signalGeneratedBy, object filterKey) where T : IBufferedSignal;
+        ReadOnlySequence<T> ReadIncomingSignals<T>() where T : IBufferedSignal;
+        void DeleteIncomingSignals<T>(long count) where T : IBufferedSignal;
     }
 }

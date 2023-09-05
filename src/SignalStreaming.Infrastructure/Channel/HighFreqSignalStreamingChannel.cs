@@ -1,5 +1,6 @@
 using System;
-using System.Buffers; 
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Threading;
 using Crossoverse.Toolkit.Transports;
 using Crossoverse.Toolkit.Serialization;
@@ -20,10 +21,11 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         public bool IsConnected => _isConnected;
 
         public IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }
-        public ISubscriber<ObjectPoseSignal> OnObjectPoseReceived { get; }
+
+        private static readonly Type TYPE_OF_OBJECT_POSE_SIGNAL = typeof(ObjectPoseSignal);
+        private readonly ConcurrentQueue<ObjectPoseSignal> _incomingObjectPoseSignalBuffer = new(); // TODO: Optimization
 
         private readonly IDisposableBufferedPublisher<bool> _connectionStatePublisher;
-        private readonly IDisposablePublisher<ObjectPoseSignal> _objectPoseSignalPublisher;
 
         private readonly IMessageSerializer _messageSerializer = new MessagePackMessageSerializer();
         private readonly ITransport _transport;
@@ -42,12 +44,11 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _id = id;
             _transport = transport;
             (_connectionStatePublisher, ConnectionStateSubscriber) = eventFactory.CreateBufferedEvent<bool>(_isConnected);
-            (_objectPoseSignalPublisher, OnObjectPoseReceived) = eventFactory.CreateEvent<ObjectPoseSignal>();
         }
 
         public void Initialize()
         {
-            _transport.OnReceiveMessage += OnMessageReceived;
+            _transport.OnReceiveMessage += HandleTransportMessage;
             _initialized = true;
         }
 
@@ -58,10 +59,9 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
         public async UniTask DisposeAsync()
         {
-            _transport.OnReceiveMessage -= OnMessageReceived;
+            _transport.OnReceiveMessage -= HandleTransportMessage;
             await DisconnectAsync();
             _connectionStatePublisher.Dispose();
-            _objectPoseSignalPublisher.Dispose();
             DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(HighFreqSignalStreamingChannel)}] Disposed.</color>");
         }
 
@@ -97,7 +97,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
             var signalId = signal switch
             {
-                ObjectPoseSignal => (int)SignalType.ObjectPose,
+                ObjectPoseSignal => (int) SignalType.ObjectPose,
                 _ => -1,
             };
 
@@ -123,9 +123,47 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _transport.Send(buffer.WrittenSpan.ToArray(), sendOptions);
         }
 
-        private void OnMessageReceived(byte[] serializedMessage)
+        public ReadOnlySequence<T> ReadIncomingSignals<T>() where T : IHighFreqSignal
         {
-            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(HighFreqSignalStreamingChannel)}] OnMessageReceived</color>");
+            // References:
+            //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
+            //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
+            //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
+            //
+            if (typeof(T) == TYPE_OF_OBJECT_POSE_SIGNAL)
+            {
+                if (_incomingObjectPoseSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingObjectPoseSignalBuffer.ToArray(); // TODO: Optimization
+                var sequence = new ReadOnlySequence<ObjectPoseSignal>(segment);
+                var convertFunc = (Func<ReadOnlySequence<ObjectPoseSignal>, ReadOnlySequence<T>>)(object)s_GetObjectPoseSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
+
+            return ReadOnlySequence<T>.Empty;
+        }
+
+        public void DeleteIncomingSignals<T>(long count) where T : IHighFreqSignal
+        {
+            if (typeof(T) == TYPE_OF_OBJECT_POSE_SIGNAL)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingObjectPoseSignalBuffer.TryDequeue(out _);
+                }
+            }
+        }
+
+        // References:
+        //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
+        //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
+        //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
+        //
+        private static Func<ReadOnlySequence<ObjectPoseSignal>, ReadOnlySequence<ObjectPoseSignal>> s_GetObjectPoseSignalSequence = (param) => param;
+
+        private void HandleTransportMessage(byte[] serializedMessage)
+        {
+            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(HighFreqSignalStreamingChannel)}] HandleTransportMessage</color>");
 
             var messagePackReader = new MessagePackReader(serializedMessage);
 
@@ -142,7 +180,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             if ((int)SignalType.ObjectPose == signalId)
             {
                 var signal = _messageSerializer.Deserialize<ObjectPoseSignal>(new ReadOnlySequence<byte>(serializedMessage, offset, serializedMessage.Length - offset));
-                _objectPoseSignalPublisher.Publish(signal);
+                _incomingObjectPoseSignalBuffer.Enqueue(signal);
             }
             else
             {

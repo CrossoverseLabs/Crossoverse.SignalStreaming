@@ -7,7 +7,7 @@ using Crossoverse.Toolkit.Transports.PhotonRealtime;
 
 namespace Crossoverse.SignalStreaming.Infrastructure
 {
-    public sealed class TransportFactory : ITransportFactoryV2<SignalType>
+    public sealed class TransportFactory : ITransportFactory<SignalType>
     {
         private readonly IConfigurationRepository<string> _configurationRepository;
 

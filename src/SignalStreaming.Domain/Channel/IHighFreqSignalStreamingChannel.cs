@@ -1,10 +1,13 @@
+using System;
+using System.Buffers;
 using MessagePipe;
 
 namespace Crossoverse.SignalStreaming
 {
-    public interface IHighFreqSignalStreamingChannel : ISignalStreamingChannel
+    public interface IHighFreqSignalStreamingChannel :ISignalStreamingChannel<SignalType>
     {
-        ISubscriber<HighFreqSignal.ObjectPoseSignal> OnObjectPoseReceived { get; }
         void Send<T>(T signal) where T : IHighFreqSignal;
+        ReadOnlySequence<T> ReadIncomingSignals<T>() where T : IHighFreqSignal;
+        void DeleteIncomingSignals<T>(long count) where T : IHighFreqSignal;
     }
 }

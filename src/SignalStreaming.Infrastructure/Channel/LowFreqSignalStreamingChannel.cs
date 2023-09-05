@@ -1,5 +1,6 @@
 using System;
-using System.Buffers; 
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Threading;
 using Crossoverse.Toolkit.Transports;
 using Crossoverse.Toolkit.Serialization;
@@ -20,12 +21,13 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         public bool IsConnected => _isConnected;
 
         public IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }
-        public ISubscriber<TextMessageSignal> OnTextMessageReceived { get; }
-        public ISubscriber<DestroyObjectSignal> OnDestroyObjectSignalReceived { get; }
+
+        private static readonly Type TYPE_OF_TEXT_MESSAGE_SIGNAL = typeof(TextMessageSignal);
+        private static readonly Type TYPE_OF_DESTROY_OBJECT_SIGNAL = typeof(DestroyObjectSignal);
+        private readonly ConcurrentQueue<TextMessageSignal> _incomingTextMessageSignalBuffer = new();
+        private readonly ConcurrentQueue<DestroyObjectSignal> _incomingDestroyObjectSignalBuffer = new();
 
         private readonly IDisposableBufferedPublisher<bool> _connectionStatePublisher;
-        private readonly IDisposablePublisher<TextMessageSignal> _textMessageSignalPublisher;
-        private readonly IDisposablePublisher<DestroyObjectSignal> _destroyObjectSignalPublisher;
 
         private readonly IMessageSerializer _messageSerializer = new MessagePackMessageSerializer();
         private readonly ITransport _transport;
@@ -44,13 +46,11 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _id = id;
             _transport = transport;
             (_connectionStatePublisher, ConnectionStateSubscriber) = eventFactory.CreateBufferedEvent<bool>(_isConnected);
-            (_textMessageSignalPublisher, OnTextMessageReceived) = eventFactory.CreateEvent<TextMessageSignal>();
-            (_destroyObjectSignalPublisher, OnDestroyObjectSignalReceived) = eventFactory.CreateEvent<DestroyObjectSignal>();
         }
 
         public void Initialize()
         {
-            _transport.OnReceiveMessage += OnMessageReceived;
+            _transport.OnReceiveMessage += HandleTransportMessage;
             _initialized = true;
         }
 
@@ -61,11 +61,9 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
         public async UniTask DisposeAsync()
         {
-            _transport.OnReceiveMessage -= OnMessageReceived;
+            _transport.OnReceiveMessage -= HandleTransportMessage;
             await DisconnectAsync();
             _connectionStatePublisher.Dispose();
-            _textMessageSignalPublisher.Dispose();
-            _destroyObjectSignalPublisher.Dispose();
             DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(LowFreqSignalStreamingChannel)}] Disposed.</color>");
         }
 
@@ -101,8 +99,8 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
             var signalId = signal switch
             {
-                TextMessageSignal _ => (int)SignalType.TextMessage,
-                DestroyObjectSignal _ => (int)SignalType.DestroyObject,
+                TextMessageSignal _ => (int) SignalType.TextMessage,
+                DestroyObjectSignal _ => (int) SignalType.DestroyObject,
                 _ => -1,
             };
 
@@ -128,9 +126,64 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _transport.Send(buffer.WrittenSpan.ToArray(), sendOptions);
         }
 
-        private void OnMessageReceived(byte[] serializedMessage)
+        public ReadOnlySequence<T> ReadIncomingSignals<T>() where T : ILowFreqSignal
         {
-            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(LowFreqSignalStreamingChannel)}] OnMessageReceived</color>");
+            // References:
+            //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
+            //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
+            //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
+            //
+            if (typeof(T) == TYPE_OF_DESTROY_OBJECT_SIGNAL)
+            {
+                if (_incomingDestroyObjectSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingDestroyObjectSignalBuffer.ToArray();
+                var sequence = new ReadOnlySequence<DestroyObjectSignal>(segment);
+                var convertFunc = (Func<ReadOnlySequence<DestroyObjectSignal>, ReadOnlySequence<T>>)(object)s_GetDestroyObjectSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
+            else if (typeof(T) == TYPE_OF_TEXT_MESSAGE_SIGNAL)
+            {
+                if (_incomingTextMessageSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingTextMessageSignalBuffer.ToArray();
+                var sequence = new ReadOnlySequence<TextMessageSignal>(segment);
+                var convertFunc = (Func<ReadOnlySequence<TextMessageSignal>, ReadOnlySequence<T>>)(object)s_GetTextMessageSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
+
+            return ReadOnlySequence<T>.Empty;
+        }
+
+        public void DeleteIncomingSignals<T>(long count) where T : ILowFreqSignal
+        {
+            if (typeof(T) == TYPE_OF_DESTROY_OBJECT_SIGNAL)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingDestroyObjectSignalBuffer.TryDequeue(out _);
+                }
+            }
+            else if (typeof(T) == TYPE_OF_TEXT_MESSAGE_SIGNAL)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingTextMessageSignalBuffer.TryDequeue(out _);
+                }
+            }
+        }
+
+        // References:
+        //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
+        //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
+        //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
+        //
+        private static Func<ReadOnlySequence<DestroyObjectSignal>, ReadOnlySequence<DestroyObjectSignal>> s_GetDestroyObjectSignalSequence = (param) => param;
+        private static Func<ReadOnlySequence<TextMessageSignal>, ReadOnlySequence<TextMessageSignal>> s_GetTextMessageSignalSequence = (param) => param;
+
+        private void HandleTransportMessage(byte[] serializedMessage)
+        {
+            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(LowFreqSignalStreamingChannel)}] HandleTransportMessage</color>");
 
             var messagePackReader = new MessagePackReader(serializedMessage);
 
@@ -147,13 +200,13 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             if ((int)SignalType.TextMessage == signalId)
             {
                 var signal = _messageSerializer.Deserialize<TextMessageSignal>(new ReadOnlySequence<byte>(serializedMessage, offset, serializedMessage.Length - offset));
-                _textMessageSignalPublisher.Publish(signal);
+                _incomingTextMessageSignalBuffer.Enqueue(signal);
             }
             else
             if ((int)SignalType.DestroyObject == signalId)
             {
                 var signal = _messageSerializer.Deserialize<DestroyObjectSignal>(new ReadOnlySequence<byte>(serializedMessage, offset, serializedMessage.Length - offset));
-                _destroyObjectSignalPublisher.Publish(signal);
+                _incomingDestroyObjectSignalBuffer.Enqueue(signal);
             }
             else
             {

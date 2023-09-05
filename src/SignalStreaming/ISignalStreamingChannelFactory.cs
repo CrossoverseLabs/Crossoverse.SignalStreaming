@@ -2,13 +2,8 @@ using System;
 
 namespace Crossoverse.SignalStreaming
 {
-    public interface ISignalStreamingChannelFactory
+    public interface ISignalStreamingChannelFactory<TSignalType> where TSignalType : struct, Enum
     {
-        ISignalStreamingChannel Create(string id, SignalType signalType, StreamingType streamingType);
-    }
-
-    public interface ISignalStreamingChannelFactoryV2<TSignalType> where TSignalType : struct, Enum
-    {
-        ISignalStreamingChannelV2<TSignalType> Create(string id, TSignalType signalType, StreamingType streamingType);
+        ISignalStreamingChannel<TSignalType> Create(string id, TSignalType signalType, StreamingType streamingType);
     }
 }

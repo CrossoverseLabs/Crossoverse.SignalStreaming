@@ -3,14 +3,14 @@ using MessagePipe;
 
 namespace Crossoverse.SignalStreaming.Infrastructure
 {
-    public sealed class SignalStreamingChannelFactory : ISignalStreamingChannelFactoryV2<SignalType>
+    public sealed class SignalStreamingChannelFactory : ISignalStreamingChannelFactory<SignalType>
     {
-        private readonly ITransportFactoryV2<SignalType> _transportFactory;
+        private readonly ITransportFactory<SignalType> _transportFactory;
         private readonly EventFactory _eventFactory;
 
         public SignalStreamingChannelFactory
         (
-            ITransportFactoryV2<SignalType> transportFactory,
+            ITransportFactory<SignalType> transportFactory,
             EventFactory eventFactory
         )
         {
@@ -18,7 +18,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _eventFactory = eventFactory;
         }
 
-        public ISignalStreamingChannelV2<SignalType> Create(string channelId, SignalType signalType, StreamingType streamingType)
+        public ISignalStreamingChannel<SignalType> Create(string channelId, SignalType signalType, StreamingType streamingType)
         {
             var transport = _transportFactory.Create(channelId, signalType, streamingType);
 
@@ -30,20 +30,17 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
             if (signalType == SignalType.BufferedSignal)
             {
-                // return new BufferedSignalStreamingChannel(channelId, transport, _eventFactory);
-                return new BufferedSignalStreamingChannelV2(channelId, transport, _eventFactory);
+                return new BufferedSignalStreamingChannel(channelId, transport, _eventFactory);
             }
             else
             if (signalType == SignalType.LowFreqSignal)
             {
-                // return new LowFreqSignalStreamingChannel(channelId, transport, _eventFactory);
-                return new LowFreqSignalStreamingChannelV2(channelId, transport, _eventFactory);
+                return new LowFreqSignalStreamingChannel(channelId, transport, _eventFactory);
             }
             else
             if (signalType == SignalType.HighFreqSignal)
             {
-                // return new HighFreqSignalStreamingChannel(channelId, transport, _eventFactory);
-                return new HighFreqSignalStreamingChannelV2(channelId, transport, _eventFactory);
+                return new HighFreqSignalStreamingChannel(channelId, transport, _eventFactory);
             }
 
             DevelopmentOnlyLogger.LogError($"[{nameof(SignalStreamingChannelFactory)}] Could not create channel. StreamingType: {streamingType}, SignalType: {signalType}.");
