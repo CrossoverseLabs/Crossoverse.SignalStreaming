@@ -12,7 +12,7 @@ using MessagePipe;
 
 namespace Crossoverse.SignalStreaming.Infrastructure
 {
-    public sealed class BufferedSignalStreamingChannel : IBufferedSignalStreamingChannel
+    public sealed class BufferedSignalStreamingChannel : IBufferedSignalStreamingChannel<SignalType>
     {
         public string Id => _id;
         public SignalType SignalType => SignalType.BufferedSignal;
