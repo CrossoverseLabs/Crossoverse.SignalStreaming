@@ -6,6 +6,7 @@
         "Crossoverse.SignalStreaming.Domain",
         "MessagePack",
         "MessagePipe",
+        "Ulid",
         "UniTask",
         "Crossoverse.Toolkit.Serialization",
         "Crossoverse.Transports",

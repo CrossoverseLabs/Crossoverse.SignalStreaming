@@ -1,4 +1,3 @@
-using System;
 using System.Numerics;
 using MessagePack;
 
@@ -17,9 +16,6 @@ namespace Crossoverse.SignalStreaming.HighFreqSignal
         public Quaternion Rotation { get; set; }
 
         [Key(3)]
-        public Guid GeneratedBy { get; set; }
-
-        [Key(4)]
-        public long OriginTimestampMilliseconds { get; set; }
+        public System.Ulid GeneratedBy { get; set; }
     }
 }

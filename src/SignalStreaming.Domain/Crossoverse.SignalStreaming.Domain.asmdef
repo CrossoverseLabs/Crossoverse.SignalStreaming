@@ -4,7 +4,8 @@
     "references": [
         "Crossoverse.SignalStreaming",
         "MessagePack.Annotations",
-        "MessagePipe"
+        "MessagePipe",
+        "Ulid"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

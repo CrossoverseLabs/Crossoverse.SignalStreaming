@@ -1,4 +1,3 @@
-using System;
 using MessagePack;
 
 namespace Crossoverse.SignalStreaming.LowFreqSignal
@@ -10,9 +9,6 @@ namespace Crossoverse.SignalStreaming.LowFreqSignal
         public int InstanceId { get; set; }
 
         [Key(1)]
-        public Guid GeneratedBy { get; set; }
-
-        [Key(2)]
-        public long OriginTimestampMilliseconds { get; set; }
+        public System.Ulid GeneratedBy { get; set; }
     }
 }

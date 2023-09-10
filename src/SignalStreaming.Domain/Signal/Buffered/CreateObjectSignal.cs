@@ -1,4 +1,3 @@
-using System;
 using MessagePack;
 
 namespace Crossoverse.SignalStreaming.BufferedSignal
@@ -7,7 +6,7 @@ namespace Crossoverse.SignalStreaming.BufferedSignal
     public sealed class CreateObjectSignal : IBufferedSignal
     {
         [Key(0)]
-        public Guid OriginalObjectId { get; set; }
+        public System.Guid OriginalObjectId { get; set; }
 
         [Key(1)]
         public int InstanceId { get; set; }
@@ -19,9 +18,6 @@ namespace Crossoverse.SignalStreaming.BufferedSignal
         public object FilterKey { get; set; }
 
         [Key(4)]
-        public Guid GeneratedBy { get; set; }
-
-        [Key(5)]
-        public long OriginTimestampMilliseconds { get; set; }
+        public System.Ulid GeneratedBy { get; set; }
     }
 }

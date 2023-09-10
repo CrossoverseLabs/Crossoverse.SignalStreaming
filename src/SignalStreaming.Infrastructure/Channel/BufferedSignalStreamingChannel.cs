@@ -131,7 +131,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _transport.Send(buffer.WrittenSpan.ToArray(), sendOptions);
         }
 
-        public void RemoveBufferedSignal<T>(Guid signalGeneratedBy, object filterKey) where T : IBufferedSignal
+        public void RemoveBufferedSignal<T>(Ulid signalGeneratedBy, object filterKey) where T : IBufferedSignal
         {
             var signalId = -1;
 
