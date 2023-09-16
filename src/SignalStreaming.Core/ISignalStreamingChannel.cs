@@ -5,11 +5,9 @@ using MessagePipe;
 
 namespace Crossoverse.SignalStreaming
 {
-    public interface ISignalStreamingChannel<TSignalType> : IDisposable where TSignalType : struct, Enum
+    public interface ISignalStreamingChannel : IDisposable
     {
         string Id { get; }
-        TSignalType SignalType { get; }
-        StreamingType StreamingType { get; }
 
         bool IsConnected { get; }
         IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }

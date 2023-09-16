@@ -18,7 +18,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             _eventFactory = eventFactory;
         }
 
-        public ISignalStreamingChannel<SignalType> Create(string channelId, SignalType signalType, StreamingType streamingType)
+        public ISignalStreamingChannel Create(string channelId, SignalType signalType, StreamingType streamingType)
         {
             var transport = _transportFactory.Create(channelId, signalType, streamingType);
 

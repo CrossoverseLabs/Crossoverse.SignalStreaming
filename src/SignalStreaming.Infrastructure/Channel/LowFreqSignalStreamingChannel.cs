@@ -12,7 +12,7 @@ using MessagePipe;
 
 namespace Crossoverse.SignalStreaming.Infrastructure
 {
-    public sealed class LowFreqSignalStreamingChannel : ILowFreqSignalStreamingChannel<SignalType>
+    public sealed class LowFreqSignalStreamingChannel : ILowFreqSignalStreamingChannel
     {
         public string Id => _id;
         public SignalType SignalType => SignalType.LowFreqSignal;

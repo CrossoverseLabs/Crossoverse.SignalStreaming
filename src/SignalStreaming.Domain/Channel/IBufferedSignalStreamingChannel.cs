@@ -4,8 +4,7 @@ using MessagePipe;
 
 namespace Crossoverse.SignalStreaming
 {
-    public interface IBufferedSignalStreamingChannel<TSignalType>
-        : ISignalStreamingChannel<TSignalType> where TSignalType : struct, Enum
+    public interface IBufferedSignalStreamingChannel : ISignalStreamingChannel
     {
         void Send<T>(T signal) where T : IBufferedSignal;
         void RemoveBufferedSignal<T>(Ulid signalGeneratedBy, object filterKey) where T : IBufferedSignal;

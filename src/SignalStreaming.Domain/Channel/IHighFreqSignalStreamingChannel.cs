@@ -4,8 +4,7 @@ using MessagePipe;
 
 namespace Crossoverse.SignalStreaming
 {
-    public interface IHighFreqSignalStreamingChannel<TSignalType>
-        : ISignalStreamingChannel<TSignalType> where TSignalType : struct, Enum
+    public interface IHighFreqSignalStreamingChannel : ISignalStreamingChannel
     {
         void Send<T>(T signal) where T : IHighFreqSignal;
         ReadOnlySequence<T> ReadIncomingSignals<T>() where T : IHighFreqSignal;

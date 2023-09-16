@@ -8,17 +8,17 @@ namespace Crossoverse.SignalStreaming
 {
     public sealed class SignalStreamingContext<TSignalType> : IDisposable where TSignalType : struct, Enum
     {
-        public ISubscriber<ISignalStreamingChannel<TSignalType>> OnStreamingChannelAdded { get; }
+        public ISubscriber<ISignalStreamingChannel> OnStreamingChannelAdded { get; }
         public ISubscriber<string> OnStreamingChannelRemoved { get; }
 
         public Ulid StreamingClientId => _streamingClientId;
         private Ulid _streamingClientId = new();
 
-        private readonly IDisposablePublisher<ISignalStreamingChannel<TSignalType>> _streamingChannelAddedEventPublisher;
+        private readonly IDisposablePublisher<ISignalStreamingChannel> _streamingChannelAddedEventPublisher;
         private readonly IDisposablePublisher<string> _streamingChannelRemovedEventPublisher;
 
         private readonly ISignalStreamingChannelFactory<TSignalType> _streamingChannelFactory;
-        private readonly Dictionary<string, ISignalStreamingChannel<TSignalType>> _streamingChannels = new();
+        private readonly Dictionary<string, ISignalStreamingChannel> _streamingChannels = new();
 
         public SignalStreamingContext
         (
@@ -27,7 +27,7 @@ namespace Crossoverse.SignalStreaming
         )
         {
             _streamingChannelFactory = streamingChannelFactory;
-            (_streamingChannelAddedEventPublisher, OnStreamingChannelAdded) = eventFactory.CreateEvent<ISignalStreamingChannel<TSignalType>>();
+            (_streamingChannelAddedEventPublisher, OnStreamingChannelAdded) = eventFactory.CreateEvent<ISignalStreamingChannel>();
             (_streamingChannelRemovedEventPublisher, OnStreamingChannelRemoved) = eventFactory.CreateEvent<string>();
         }
 
