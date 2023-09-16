@@ -1,4 +1,4 @@
-using Crossoverse.SignalStreaming;
+using Crossoverse.Toolkit.Serialization;
 using MessagePipe;
 
 namespace Crossoverse.SignalStreaming.Infrastructure
@@ -7,6 +7,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
     {
         private readonly ITransportFactory<SignalType> _transportFactory;
         private readonly EventFactory _eventFactory;
+        private readonly IMessageSerializer _messageSerializer;
 
         public SignalStreamingChannelFactory
         (
@@ -16,6 +17,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         {
             _transportFactory = transportFactory;
             _eventFactory = eventFactory;
+            _messageSerializer = new MessagePackMessageSerializer();
         }
 
         public ISignalStreamingChannel Create(string channelId, SignalType signalType, StreamingType streamingType)
@@ -30,7 +32,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
             if (signalType == SignalType.BufferedSignal)
             {
-                return new BufferedSignalStreamingChannel(channelId, transport, _eventFactory);
+                return new BufferedSignalStreamingChannel(channelId, transport, _messageSerializer, _eventFactory);
             }
             else
             if (signalType == SignalType.LowFreqSignal)

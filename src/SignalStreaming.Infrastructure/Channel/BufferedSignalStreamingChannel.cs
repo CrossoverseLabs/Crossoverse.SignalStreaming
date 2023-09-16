@@ -2,120 +2,105 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Threading;
-using Crossoverse.SignalStreaming;
 using Crossoverse.SignalStreaming.BufferedSignal;
 using Crossoverse.Toolkit.Serialization;
 using Crossoverse.Toolkit.Transports;
 using Cysharp.Threading.Tasks;
-using MessagePack;
 using MessagePipe;
 
 namespace Crossoverse.SignalStreaming.Infrastructure
 {
     public sealed class BufferedSignalStreamingChannel : IBufferedSignalStreamingChannel
     {
-        public string Id => _id;
-        public SignalType SignalType => SignalType.BufferedSignal;
-        public StreamingType StreamingType => StreamingType.Bidirectional;
+        public string Id => _signalStreamingChannel.Id;
+        public bool IsConnected => _signalStreamingChannel.IsConnected;
 
-        public bool IsConnected => _isConnected;
+        public IBufferedSubscriber<bool> ConnectionStateSubscriber => _signalStreamingChannel.ConnectionStateSubscriber;
 
-        public IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }
-
-        private static readonly Type TYPE_OF_CREATE_OBJECT_SIGNAL = typeof(CreateObjectSignal);
+        private static readonly Type TypeOfCreateObjectSignal = typeof(CreateObjectSignal);
         private readonly ConcurrentQueue<CreateObjectSignal> _incomingCreateObjectSignalBuffer = new();
 
-        private readonly IDisposableBufferedPublisher<bool> _connectionStatePublisher;
+        private readonly IMessageSerializer _messageSerializer;
+        private readonly SignalStreamingChannel _signalStreamingChannel;
 
-        private readonly IMessageSerializer _messageSerializer = new MessagePackMessageSerializer();
-        private readonly ITransport _transport;
-        private readonly string _id;
-
-        private bool _isConnected;
-        private bool _initialized;
+        private bool _isInitialized;
+        private IDisposable _disposable;
 
         public BufferedSignalStreamingChannel
         (
             string id,
             ITransport transport,
+            IMessageSerializer messageSerializer,
             EventFactory eventFactory
         )
         {
-            _id = id;
-            _transport = transport;
-            (_connectionStatePublisher, ConnectionStateSubscriber) = eventFactory.CreateBufferedEvent<bool>(_isConnected);
+            _messageSerializer = messageSerializer;
+            _signalStreamingChannel = new SignalStreamingChannel
+            (
+                id,
+                transport,
+                messageSerializer,
+                eventFactory
+            );
         }
 
         public void Initialize()
         {
-            _transport.OnReceiveMessage += HandleTransportMessage;
-            _initialized = true;
+            if (_isInitialized) return;
+
+            var disposableBagBuilder = DisposableBag.CreateBuilder();
+
+            _signalStreamingChannel.OnSignalReceived
+                .Subscribe(HandleTransportedSignal)
+                .AddTo(disposableBagBuilder);
+
+            _disposable = disposableBagBuilder.Build();
+
+            _signalStreamingChannel.Initialize();
+            _isInitialized = true;
+
+            DevelopmentOnlyLogger.Log($"<color=cyan>[{nameof(BufferedSignalStreamingChannel)}] Initialized.</color>");
         }
 
         public void Dispose()
-        {
+        {            
             DisposeAsync().Forget();
         }
 
         public async UniTask DisposeAsync()
         {
-            _transport.OnReceiveMessage -= HandleTransportMessage;
-            await DisconnectAsync();
-            _connectionStatePublisher.Dispose();
+            await _signalStreamingChannel.DisposeAsync();
+            _disposable?.Dispose();
             DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(BufferedSignalStreamingChannel)}] Disposed.</color>");
         }
 
         public async UniTask<bool> ConnectAsync(CancellationToken token = default)
         {
-            if (!_initialized) Initialize();
-
-            if (_isConnected)
-            {
-                DevelopmentOnlyLogger.Log($"<color=orange>[{nameof(BufferedSignalStreamingChannel)}] Already connected.</color>");
-                return true;
-            }
-
-            _isConnected = await _transport.ConnectAsync(_id);
-            _connectionStatePublisher.Publish(_isConnected);
-
-            return _isConnected;
+            if (!_isInitialized) Initialize();
+            return await _signalStreamingChannel.ConnectAsync(token);
         }
 
         public async UniTask DisconnectAsync()
         {
-            if (!_isConnected) return;
-
-            await _transport.DisconnectAsync();
-            _isConnected = false;
-
-            _connectionStatePublisher.Publish(_isConnected);
+            await _signalStreamingChannel.DisconnectAsync();
         }
 
         public void Send<T>(T signal) where T : IBufferedSignal
         {
             DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(BufferedSignalStreamingChannel)}] SendSignal</color>");
 
-            var signalId = signal switch
+            var signalType = (int)SignalType.Unknown;
+
+            if (typeof(T) == TypeOfCreateObjectSignal)
             {
-                CreateObjectSignal _ => (int) SignalType.CreateObject,
-                _ => -1,
-            };
+                signalType = (int)SignalType.CreateObject;
+            }
 
-            if (signalId < 0) throw new ArgumentException($"Cannot send signal: {signal.GetType().Name}");
-
-            using var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter();
-
-            var writer = new MessagePackWriter(buffer);
-            writer.WriteArrayHeader(3);
-            writer.Write(signalId);
-            writer.Write(_transport.ClientId);
-            writer.Flush();
-
-            _messageSerializer.Serialize(buffer, signal);
+            if (signalType < 0) throw new ArgumentException($"Unknown signal type");
 
             var bufferingKey = new BufferingKey()
             {
-                FirstKey = signalId,
+                FirstKey = signalType,
                 SecondKey = signal.GeneratedBy.ToString(),
                 ThirdKey = signal.FilterKey,
             };
@@ -128,23 +113,23 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                 Reliability = true,
             };
 
-            _transport.Send(buffer.WrittenSpan.ToArray(), sendOptions);
+            _signalStreamingChannel.Send<T>(signal, signalType, sendOptions);
         }
 
         public void RemoveBufferedSignal<T>(Ulid signalGeneratedBy, object filterKey) where T : IBufferedSignal
         {
-            var signalId = -1;
+            var signalType = (int)SignalType.Unknown;
 
-            if (typeof(T) == TYPE_OF_CREATE_OBJECT_SIGNAL)
+            if (typeof(T) == TypeOfCreateObjectSignal)
             {
-                signalId = (int) SignalType.CreateObject;
+                signalType = (int)SignalType.CreateObject;
             }
 
-            if (signalId < 0) throw new ArgumentException($"Unknown signal type");
+            if (signalType < 0) throw new InvalidOperationException($"Unknown signal type");
 
             var bufferingKey = new BufferingKey()
             {
-                FirstKey = signalId,
+                FirstKey = signalType,
                 SecondKey = signalGeneratedBy.ToString(),
                 ThirdKey = filterKey,
             };
@@ -157,22 +142,24 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                 Reliability = true,
             };
 
-            _transport.Send(null, sendOptions);
+            _signalStreamingChannel.Send<T>(default, signalType, sendOptions);
         }
 
         public ReadOnlySequence<T> ReadIncomingSignals<T>() where T : IBufferedSignal
         {
+            // NOTE: This is a workaround to avoid boxing of value types.
             // References:
             //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
             //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
             //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
             //
-            if (typeof(T) == TYPE_OF_CREATE_OBJECT_SIGNAL)
+            if (typeof(T) == TypeOfCreateObjectSignal)
             {
                 if (_incomingCreateObjectSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
 
                 var segment = _incomingCreateObjectSignalBuffer.ToArray();
                 var sequence = new ReadOnlySequence<CreateObjectSignal>(segment);
+
                 var convertFunc = (Func<ReadOnlySequence<CreateObjectSignal>, ReadOnlySequence<T>>)(object)s_GetCreateObjectSignalSequence;
                 return convertFunc.Invoke(sequence);
             }
@@ -182,7 +169,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
         public void DeleteIncomingSignals<T>(long count) where T : IBufferedSignal
         {
-            if (typeof(T) == TYPE_OF_CREATE_OBJECT_SIGNAL)
+            if (typeof(T) == TypeOfCreateObjectSignal)
             {
                 for (var i = 0; i < count; i++)
                 {
@@ -191,6 +178,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             }
         }
 
+        // NOTE: This is a workaround to avoid boxing of value types.
         // References:
         //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
         //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
@@ -198,25 +186,13 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         //
         private static Func<ReadOnlySequence<CreateObjectSignal>, ReadOnlySequence<CreateObjectSignal>> s_GetCreateObjectSignalSequence = (param) => param;
 
-        private void HandleTransportMessage(byte[] serializedMessage)
+        private void HandleTransportedSignal((int SignalId, ReadOnlySequence<byte> Payload) data)
         {
-            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(BufferedSignalStreamingChannel)}] HandleTransportMessage</color>");
+            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(BufferedSignalStreamingChannel)}] HandleTransportedSignal</color>");
 
-            var messagePackReader = new MessagePackReader(serializedMessage);
-
-            var arrayLength = messagePackReader.ReadArrayHeader();
-            if (arrayLength != 3)
+            if (data.SignalId == (int)SignalType.CreateObject)
             {
-                DevelopmentOnlyLogger.LogError($"[{nameof(BufferedSignalStreamingChannel)}] The received message is unsupported format.");
-            }
-
-            var signalId = messagePackReader.ReadInt32();
-            var transportClientId = messagePackReader.ReadInt32();
-            var offset = (int)messagePackReader.Consumed;
-
-            if ((int)SignalType.CreateObject == signalId)
-            {
-                var signal = _messageSerializer.Deserialize<CreateObjectSignal>(new ReadOnlySequence<byte>(serializedMessage, offset, serializedMessage.Length - offset));
+                var signal = _messageSerializer.Deserialize<CreateObjectSignal>(data.Payload);
                 _incomingCreateObjectSignalBuffer.Enqueue(signal);
             }
         }
