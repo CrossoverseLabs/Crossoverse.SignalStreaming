@@ -2,6 +2,8 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 {
     public enum SignalType
     {
+        Unknown = -1,
+
         BufferedSignal = 0,
         LowFreqSignal = 64,
         HighFreqSignal = 128,
