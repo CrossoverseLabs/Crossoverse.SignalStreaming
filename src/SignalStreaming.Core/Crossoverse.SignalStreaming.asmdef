@@ -6,6 +6,7 @@
         "MessagePipe",
         "MessagePack",
         "MessagePack.Annotations",
+        "Crossoverse.Toolkit.Serialization",
         "Crossoverse.Transports",
         "Ulid"
     ],
