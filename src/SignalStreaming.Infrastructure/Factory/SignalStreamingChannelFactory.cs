@@ -42,7 +42,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             else
             if (signalType == SignalType.HighFreqSignal)
             {
-                return new HighFreqSignalStreamingChannel(channelId, transport, _eventFactory);
+                return new HighFreqSignalStreamingChannel(channelId, transport, _messageSerializer, _eventFactory);
             }
 
             DevelopmentOnlyLogger.LogError($"[{nameof(SignalStreamingChannelFactory)}] Could not create channel. StreamingType: {streamingType}, SignalType: {signalType}.");
