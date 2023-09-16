@@ -18,7 +18,12 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         public IBufferedSubscriber<bool> ConnectionStateSubscriber => _signalStreamingChannel.ConnectionStateSubscriber;
 
         private static readonly Type TypeOfCreateObjectSignal = typeof(CreateObjectSignal);
+        private static readonly Type TypeOfItemSpawnSignal = typeof(ItemSpawnSignal);
+        private static readonly Type TypeOfPlayerSpawnSignal = typeof(PlayerSpawnSignal);
+
         private readonly ConcurrentQueue<CreateObjectSignal> _incomingCreateObjectSignalBuffer = new();
+        private readonly ConcurrentQueue<ItemSpawnSignal> _incomingItemSpawnSignalBuffer = new();
+        private readonly ConcurrentQueue<PlayerSpawnSignal> _incomingPlayerSpawnSignalBuffer = new();
 
         private readonly IMessageSerializer _messageSerializer;
         private readonly SignalStreamingChannel _signalStreamingChannel;
@@ -95,6 +100,14 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             {
                 signalType = (int)SignalType.CreateObject;
             }
+            else if (typeof(T) == TypeOfItemSpawnSignal)
+            {
+                signalType = (int)SignalType.ItemSpawn;
+            }
+            else if (typeof(T) == TypeOfPlayerSpawnSignal)
+            {
+                signalType = (int)SignalType.PlayerSpawn;
+            }
 
             if (signalType < 0) throw new ArgumentException($"Unknown signal type");
 
@@ -123,6 +136,14 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             if (typeof(T) == TypeOfCreateObjectSignal)
             {
                 signalType = (int)SignalType.CreateObject;
+            }
+            else if (typeof(T) == TypeOfItemSpawnSignal)
+            {
+                signalType = (int)SignalType.ItemSpawn;
+            }
+            else if (typeof(T) == TypeOfPlayerSpawnSignal)
+            {
+                signalType = (int)SignalType.PlayerSpawn;
             }
 
             if (signalType < 0) throw new InvalidOperationException($"Unknown signal type");
@@ -163,6 +184,26 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                 var convertFunc = (Func<ReadOnlySequence<CreateObjectSignal>, ReadOnlySequence<T>>)(object)s_GetCreateObjectSignalSequence;
                 return convertFunc.Invoke(sequence);
             }
+            else if (typeof(T) == TypeOfItemSpawnSignal)
+            {
+                if (_incomingItemSpawnSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingItemSpawnSignalBuffer.ToArray();
+                var sequence = new ReadOnlySequence<ItemSpawnSignal>(segment);
+
+                var convertFunc = (Func<ReadOnlySequence<ItemSpawnSignal>, ReadOnlySequence<T>>)(object)s_GetItemSpawnSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
+            else if (typeof(T) == TypeOfPlayerSpawnSignal)
+            {
+                if (_incomingPlayerSpawnSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingPlayerSpawnSignalBuffer.ToArray();
+                var sequence = new ReadOnlySequence<PlayerSpawnSignal>(segment);
+
+                var convertFunc = (Func<ReadOnlySequence<PlayerSpawnSignal>, ReadOnlySequence<T>>)(object)s_GetPlayerSpawnSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
 
             return ReadOnlySequence<T>.Empty;
         }
@@ -176,6 +217,20 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                     _incomingCreateObjectSignalBuffer.TryDequeue(out _);
                 }
             }
+            else if (typeof(T) == TypeOfItemSpawnSignal)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingItemSpawnSignalBuffer.TryDequeue(out _);
+                }
+            }
+            else if (typeof(T) == TypeOfPlayerSpawnSignal)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingPlayerSpawnSignalBuffer.TryDequeue(out _);
+                }
+            }
         }
 
         // NOTE: This is a workaround to avoid boxing of value types.
@@ -185,6 +240,8 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
         //
         private static Func<ReadOnlySequence<CreateObjectSignal>, ReadOnlySequence<CreateObjectSignal>> s_GetCreateObjectSignalSequence = (param) => param;
+        private static Func<ReadOnlySequence<ItemSpawnSignal>, ReadOnlySequence<ItemSpawnSignal>> s_GetItemSpawnSignalSequence = (param) => param;
+        private static Func<ReadOnlySequence<PlayerSpawnSignal>, ReadOnlySequence<PlayerSpawnSignal>> s_GetPlayerSpawnSignalSequence = (param) => param;
 
         private void HandleTransportedSignal((int SignalId, ReadOnlySequence<byte> Payload) data)
         {
@@ -194,6 +251,16 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             {
                 var signal = _messageSerializer.Deserialize<CreateObjectSignal>(data.Payload);
                 _incomingCreateObjectSignalBuffer.Enqueue(signal);
+            }
+            else if (data.SignalId == (int)SignalType.ItemSpawn)
+            {
+                var signal = _messageSerializer.Deserialize<ItemSpawnSignal>(data.Payload);
+                _incomingItemSpawnSignalBuffer.Enqueue(signal);
+            }
+            else if (data.SignalId == (int)SignalType.PlayerSpawn)
+            {
+                var signal = _messageSerializer.Deserialize<PlayerSpawnSignal>(data.Payload);
+                _incomingPlayerSpawnSignalBuffer.Enqueue(signal);
             }
         }
     }

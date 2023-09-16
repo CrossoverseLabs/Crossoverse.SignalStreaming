@@ -18,7 +18,9 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         public IBufferedSubscriber<bool> ConnectionStateSubscriber => _signalStreamingChannel.ConnectionStateSubscriber;
 
         private static readonly Type TypeOfObjectPoseSignal = typeof(ObjectPoseSignal);
+        private static readonly Type TypeOfItemPoseSignal = typeof(ItemPoseSignal);
         private readonly ConcurrentQueue<ObjectPoseSignal> _incomingObjectPoseSignalBuffer = new();
+        private readonly ConcurrentQueue<ItemPoseSignal> _incomingItemPoseSignalBuffer = new();
 
         private readonly IMessageSerializer _messageSerializer;
         private readonly SignalStreamingChannel _signalStreamingChannel;
@@ -95,6 +97,10 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             {
                 signalType = (int)SignalType.ObjectPose;
             }
+            else if (typeof(T) == TypeOfItemPoseSignal)
+            {
+                signalType = (int)SignalType.ItemPose;
+            }
 
             if (signalType < 0) throw new ArgumentException($"Unknown signal type");
 
@@ -126,6 +132,16 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                 var convertFunc = (Func<ReadOnlySequence<ObjectPoseSignal>, ReadOnlySequence<T>>)(object)s_GetObjectPoseSignalSequence;
                 return convertFunc.Invoke(sequence);
             }
+            else if (typeof(T) == TypeOfItemPoseSignal)
+            {
+                if (_incomingItemPoseSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingItemPoseSignalBuffer.ToArray(); // TODO: Optimization
+                var sequence = new ReadOnlySequence<ItemPoseSignal>(segment);
+
+                var convertFunc = (Func<ReadOnlySequence<ItemPoseSignal>, ReadOnlySequence<T>>)(object)s_GetItemPoseSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
 
             return ReadOnlySequence<T>.Empty;
         }
@@ -139,6 +155,13 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                     _incomingObjectPoseSignalBuffer.TryDequeue(out _);
                 }
             }
+            else if (typeof(T) == TypeOfItemPoseSignal)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingItemPoseSignalBuffer.TryDequeue(out _);
+                }
+            }
         }
 
         // NOTE: This is a workaround to avoid boxing of value types.
@@ -148,6 +171,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
         //
         private static Func<ReadOnlySequence<ObjectPoseSignal>, ReadOnlySequence<ObjectPoseSignal>> s_GetObjectPoseSignalSequence = (param) => param;
+        private static Func<ReadOnlySequence<ItemPoseSignal>, ReadOnlySequence<ItemPoseSignal>> s_GetItemPoseSignalSequence = (param) => param;
 
         private void HandleTransportedSignal((int SignalId, ReadOnlySequence<byte> Payload) data)
         {
@@ -157,6 +181,11 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             {
                 var signal = _messageSerializer.Deserialize<ObjectPoseSignal>(data.Payload);
                 _incomingObjectPoseSignalBuffer.Enqueue(signal);
+            }
+            else if (data.SignalId == (int)SignalType.ItemPose)
+            {
+                var signal = _messageSerializer.Deserialize<ItemPoseSignal>(data.Payload);
+                _incomingItemPoseSignalBuffer.Enqueue(signal);
             }
         }
     }

@@ -18,8 +18,13 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         public IBufferedSubscriber<bool> ConnectionStateSubscriber => _signalStreamingChannel.ConnectionStateSubscriber;
 
         private static readonly Type TypeOfDestroyObjectSignal = typeof(DestroyObjectSignal);
+        private static readonly Type TypeOfItemDespawnSignal = typeof(ItemDespawnSignal);
+        private static readonly Type TypeOfPlayerDespawnSignal = typeof(PlayerDespawnSignal);
         private static readonly Type TypeOfTextMessageSignal = typeof(TextMessageSignal);
+
         private readonly ConcurrentQueue<DestroyObjectSignal> _incomingDestroyObjectSignalBuffer = new();
+        private readonly ConcurrentQueue<ItemDespawnSignal> _incomingItemDespawnSignalBuffer = new();
+        private readonly ConcurrentQueue<PlayerDespawnSignal> _incomingPlayerDespawnSignalBuffer = new();
         private readonly ConcurrentQueue<TextMessageSignal> _incomingTextMessageSignalBuffer = new();
 
         private readonly IMessageSerializer _messageSerializer;
@@ -97,6 +102,14 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             {
                 signalType = (int)SignalType.DestroyObject;
             }
+            else if (typeof(T) == TypeOfItemDespawnSignal)
+            {
+                signalType = (int)SignalType.ItemDespawn;
+            }
+            else if (typeof(T) == TypeOfPlayerDespawnSignal)
+            {
+                signalType = (int)SignalType.PlayerDespawn;
+            }
             else if (typeof(T) == TypeOfTextMessageSignal)
             {
                 signalType = (int)SignalType.TextMessage;
@@ -132,6 +145,26 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                 var convertFunc = (Func<ReadOnlySequence<DestroyObjectSignal>, ReadOnlySequence<T>>)(object)s_GetDestroyObjectSignalSequence;
                 return convertFunc.Invoke(sequence);
             }
+            else if (typeof(T) == TypeOfItemDespawnSignal)
+            {
+                if (_incomingItemDespawnSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingItemDespawnSignalBuffer.ToArray();
+                var sequence = new ReadOnlySequence<ItemDespawnSignal>(segment);
+
+                var convertFunc = (Func<ReadOnlySequence<ItemDespawnSignal>, ReadOnlySequence<T>>)(object)s_GetItemDespawnSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
+            else if (typeof(T) == TypeOfPlayerDespawnSignal)
+            {
+                if (_incomingPlayerDespawnSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
+
+                var segment = _incomingPlayerDespawnSignalBuffer.ToArray();
+                var sequence = new ReadOnlySequence<PlayerDespawnSignal>(segment);
+
+                var convertFunc = (Func<ReadOnlySequence<PlayerDespawnSignal>, ReadOnlySequence<T>>)(object)s_GetPlayerDespawnSignalSequence;
+                return convertFunc.Invoke(sequence);
+            }
             else if (typeof(T) == TypeOfTextMessageSignal)
             {
                 if (_incomingTextMessageSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
@@ -155,6 +188,20 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                     _incomingDestroyObjectSignalBuffer.TryDequeue(out _);
                 }
             }
+            else if (typeof(T) == TypeOfItemDespawnSignal)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingItemDespawnSignalBuffer.TryDequeue(out _);
+                }
+            }
+            else if (typeof(T) == TypeOfPlayerDespawnSignal)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _incomingPlayerDespawnSignalBuffer.TryDequeue(out _);
+                }
+            }
             else if (typeof(T) == TypeOfTextMessageSignal)
             {
                 for (var i = 0; i < count; i++)
@@ -171,6 +218,8 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
         //
         private static Func<ReadOnlySequence<DestroyObjectSignal>, ReadOnlySequence<DestroyObjectSignal>> s_GetDestroyObjectSignalSequence = (param) => param;
+        private static Func<ReadOnlySequence<ItemDespawnSignal>, ReadOnlySequence<ItemDespawnSignal>> s_GetItemDespawnSignalSequence = (param) => param;
+        private static Func<ReadOnlySequence<PlayerDespawnSignal>, ReadOnlySequence<PlayerDespawnSignal>> s_GetPlayerDespawnSignalSequence = (param) => param;
         private static Func<ReadOnlySequence<TextMessageSignal>, ReadOnlySequence<TextMessageSignal>> s_GetTextMessageSignalSequence = (param) => param;
 
         private void HandleTransportedSignal((int SignalId, ReadOnlySequence<byte> Payload) data)
@@ -181,6 +230,16 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             {
                 var signal = _messageSerializer.Deserialize<DestroyObjectSignal>(data.Payload);
                 _incomingDestroyObjectSignalBuffer.Enqueue(signal);
+            }
+            else if (data.SignalId == (int)SignalType.ItemDespawn)
+            {
+                var signal = _messageSerializer.Deserialize<ItemDespawnSignal>(data.Payload);
+                _incomingItemDespawnSignalBuffer.Enqueue(signal);
+            }
+            else if (data.SignalId == (int)SignalType.PlayerDespawn)
+            {
+                var signal = _messageSerializer.Deserialize<PlayerDespawnSignal>(data.Payload);
+                _incomingPlayerDespawnSignalBuffer.Enqueue(signal);
             }
             else if (data.SignalId == (int)SignalType.TextMessage)
             {
