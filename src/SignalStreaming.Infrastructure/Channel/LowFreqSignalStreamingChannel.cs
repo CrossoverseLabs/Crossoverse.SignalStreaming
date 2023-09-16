@@ -2,56 +2,66 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Threading;
-using Crossoverse.Toolkit.Transports;
-using Crossoverse.Toolkit.Serialization;
-using Crossoverse.SignalStreaming;
 using Crossoverse.SignalStreaming.LowFreqSignal;
+using Crossoverse.Toolkit.Serialization;
+using Crossoverse.Toolkit.Transports;
 using Cysharp.Threading.Tasks;
-using MessagePack;
 using MessagePipe;
 
 namespace Crossoverse.SignalStreaming.Infrastructure
 {
     public sealed class LowFreqSignalStreamingChannel : ILowFreqSignalStreamingChannel
     {
-        public string Id => _id;
-        public SignalType SignalType => SignalType.LowFreqSignal;
-        public StreamingType StreamingType => StreamingType.Bidirectional;
+        public string Id => _signalStreamingChannel.Id;
+        public bool IsConnected => _signalStreamingChannel.IsConnected;
 
-        public bool IsConnected => _isConnected;
+        public IBufferedSubscriber<bool> ConnectionStateSubscriber => _signalStreamingChannel.ConnectionStateSubscriber;
 
-        public IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }
-
-        private static readonly Type TYPE_OF_TEXT_MESSAGE_SIGNAL = typeof(TextMessageSignal);
-        private static readonly Type TYPE_OF_DESTROY_OBJECT_SIGNAL = typeof(DestroyObjectSignal);
-        private readonly ConcurrentQueue<TextMessageSignal> _incomingTextMessageSignalBuffer = new();
+        private static readonly Type TypeOfDestroyObjectSignal = typeof(DestroyObjectSignal);
+        private static readonly Type TypeOfTextMessageSignal = typeof(TextMessageSignal);
         private readonly ConcurrentQueue<DestroyObjectSignal> _incomingDestroyObjectSignalBuffer = new();
+        private readonly ConcurrentQueue<TextMessageSignal> _incomingTextMessageSignalBuffer = new();
 
-        private readonly IDisposableBufferedPublisher<bool> _connectionStatePublisher;
+        private readonly IMessageSerializer _messageSerializer;
+        private readonly SignalStreamingChannel _signalStreamingChannel;
 
-        private readonly IMessageSerializer _messageSerializer = new MessagePackMessageSerializer();
-        private readonly ITransport _transport;
-        private readonly string _id;
-
-        private bool _isConnected;
-        private bool _initialized;
+        private bool _isInitialized;
+        private IDisposable _disposable;
 
         public LowFreqSignalStreamingChannel
         (
             string id,
             ITransport transport,
+            IMessageSerializer messageSerializer,
             EventFactory eventFactory
         )
         {
-            _id = id;
-            _transport = transport;
-            (_connectionStatePublisher, ConnectionStateSubscriber) = eventFactory.CreateBufferedEvent<bool>(_isConnected);
+            _messageSerializer = messageSerializer;
+            _signalStreamingChannel = new SignalStreamingChannel
+            (
+                id,
+                transport,
+                messageSerializer,
+                eventFactory
+            );
         }
 
         public void Initialize()
         {
-            _transport.OnReceiveMessage += HandleTransportMessage;
-            _initialized = true;
+            if (_isInitialized) return;
+
+            var disposableBagBuilder = DisposableBag.CreateBuilder();
+
+            _signalStreamingChannel.OnSignalReceived
+                .Subscribe(HandleTransportedSignal)
+                .AddTo(disposableBagBuilder);
+
+            _disposable = disposableBagBuilder.Build();
+
+            _signalStreamingChannel.Initialize();
+            _isInitialized = true;
+
+            DevelopmentOnlyLogger.Log($"<color=cyan>[{nameof(LowFreqSignalStreamingChannel)}] Initialized.</color>");
         }
 
         public void Dispose()
@@ -61,60 +71,38 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
         public async UniTask DisposeAsync()
         {
-            _transport.OnReceiveMessage -= HandleTransportMessage;
-            await DisconnectAsync();
-            _connectionStatePublisher.Dispose();
+            await _signalStreamingChannel.DisposeAsync();
+            _disposable?.Dispose();
             DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(LowFreqSignalStreamingChannel)}] Disposed.</color>");
         }
 
         public async UniTask<bool> ConnectAsync(CancellationToken token = default)
         {
-            if (!_initialized) Initialize();
-
-            if (_isConnected)
-            {
-                DevelopmentOnlyLogger.Log($"<color=orange>[{nameof(LowFreqSignalStreamingChannel)}] Already connected.</color>");
-                return true;
-            }
-
-            _isConnected = await _transport.ConnectAsync(_id);
-            _connectionStatePublisher.Publish(_isConnected);
-
-            return _isConnected;
+            if (!_isInitialized) Initialize();
+            return await _signalStreamingChannel.ConnectAsync(token);
         }
 
         public async UniTask DisconnectAsync()
         {
-            if (!_isConnected) return;
-
-            await _transport.DisconnectAsync();
-            _isConnected = false;
-
-            _connectionStatePublisher.Publish(_isConnected);
+            await _signalStreamingChannel.DisconnectAsync();
         }
 
         public void Send<T>(T signal) where T : ILowFreqSignal
         {
-            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(LowFreqSignalStreamingChannel)}] SendEvent</color>");
+            DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(LowFreqSignalStreamingChannel)}] SendSignal</color>");
 
-            var signalId = signal switch
+            var signalType = (int)SignalType.Unknown;
+
+            if (typeof(T) == TypeOfDestroyObjectSignal)
             {
-                TextMessageSignal _ => (int) SignalType.TextMessage,
-                DestroyObjectSignal _ => (int) SignalType.DestroyObject,
-                _ => -1,
-            };
+                signalType = (int)SignalType.DestroyObject;
+            }
+            else if (typeof(T) == TypeOfTextMessageSignal)
+            {
+                signalType = (int)SignalType.TextMessage;
+            }
 
-            if (signalId < 0) throw new ArgumentException($"Cannot send signal: {signal.GetType().Name}");
-
-            using var buffer = ArrayPoolBufferWriter.RentThreadStaticWriter();
-
-            var writer = new MessagePackWriter(buffer);
-            writer.WriteArrayHeader(3);
-            writer.Write(signalId);
-            writer.Write(_transport.ClientId);
-            writer.Flush();
-
-            _messageSerializer.Serialize(buffer, signal);
+            if (signalType < 0) throw new ArgumentException($"Unknown signal type");
 
             var sendOptions = new SendOptions()
             {
@@ -123,31 +111,34 @@ namespace Crossoverse.SignalStreaming.Infrastructure
                 Reliability = true,
             };
 
-            _transport.Send(buffer.WrittenSpan.ToArray(), sendOptions);
+            _signalStreamingChannel.Send<T>(signal, signalType, sendOptions);
         }
 
         public ReadOnlySequence<T> ReadIncomingSignals<T>() where T : ILowFreqSignal
         {
+            // NOTE: This is a workaround to avoid boxing of value types.
             // References:
             //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
             //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
             //  - https://stackoverflow.com/questions/45507393/primitive-type-conversion-in-generic-method-without-boxing/45508419#45508419
             //
-            if (typeof(T) == TYPE_OF_DESTROY_OBJECT_SIGNAL)
+            if (typeof(T) == TypeOfDestroyObjectSignal)
             {
                 if (_incomingDestroyObjectSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
 
                 var segment = _incomingDestroyObjectSignalBuffer.ToArray();
                 var sequence = new ReadOnlySequence<DestroyObjectSignal>(segment);
+
                 var convertFunc = (Func<ReadOnlySequence<DestroyObjectSignal>, ReadOnlySequence<T>>)(object)s_GetDestroyObjectSignalSequence;
                 return convertFunc.Invoke(sequence);
             }
-            else if (typeof(T) == TYPE_OF_TEXT_MESSAGE_SIGNAL)
+            else if (typeof(T) == TypeOfTextMessageSignal)
             {
                 if (_incomingTextMessageSignalBuffer.IsEmpty) return ReadOnlySequence<T>.Empty;
 
                 var segment = _incomingTextMessageSignalBuffer.ToArray();
                 var sequence = new ReadOnlySequence<TextMessageSignal>(segment);
+
                 var convertFunc = (Func<ReadOnlySequence<TextMessageSignal>, ReadOnlySequence<T>>)(object)s_GetTextMessageSignalSequence;
                 return convertFunc.Invoke(sequence);
             }
@@ -157,14 +148,14 @@ namespace Crossoverse.SignalStreaming.Infrastructure
 
         public void DeleteIncomingSignals<T>(long count) where T : ILowFreqSignal
         {
-            if (typeof(T) == TYPE_OF_DESTROY_OBJECT_SIGNAL)
+            if (typeof(T) == TypeOfDestroyObjectSignal)
             {
                 for (var i = 0; i < count; i++)
                 {
                     _incomingDestroyObjectSignalBuffer.TryDequeue(out _);
                 }
             }
-            else if (typeof(T) == TYPE_OF_TEXT_MESSAGE_SIGNAL)
+            else if (typeof(T) == TypeOfTextMessageSignal)
             {
                 for (var i = 0; i < count; i++)
                 {
@@ -173,6 +164,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             }
         }
 
+        // NOTE: This is a workaround to avoid boxing of value types.
         // References:
         //  - https://cactuaroid.hatenablog.com/entry/2021/07/31/234125
         //  - https://stackoverflow.com/questions/29997500/how-to-avoid-boxing-of-value-types
@@ -181,36 +173,19 @@ namespace Crossoverse.SignalStreaming.Infrastructure
         private static Func<ReadOnlySequence<DestroyObjectSignal>, ReadOnlySequence<DestroyObjectSignal>> s_GetDestroyObjectSignalSequence = (param) => param;
         private static Func<ReadOnlySequence<TextMessageSignal>, ReadOnlySequence<TextMessageSignal>> s_GetTextMessageSignalSequence = (param) => param;
 
-        private void HandleTransportMessage(byte[] serializedMessage)
+        private void HandleTransportedSignal((int SignalId, ReadOnlySequence<byte> Payload) data)
         {
             DevelopmentOnlyLogger.Log($"<color=lime>[{nameof(LowFreqSignalStreamingChannel)}] HandleTransportMessage</color>");
 
-            var messagePackReader = new MessagePackReader(serializedMessage);
-
-            var arrayLength = messagePackReader.ReadArrayHeader();
-            if (arrayLength != 3)
+            if (data.SignalId == (int)SignalType.DestroyObject)
             {
-                DevelopmentOnlyLogger.LogError($"[{nameof(LowFreqSignalStreamingChannel)}] The received message is unsupported format.");
-            }
-
-            var signalId = messagePackReader.ReadInt32();
-            var transportClientId = messagePackReader.ReadInt32();
-            var offset = (int)messagePackReader.Consumed;
-
-            if ((int)SignalType.TextMessage == signalId)
-            {
-                var signal = _messageSerializer.Deserialize<TextMessageSignal>(new ReadOnlySequence<byte>(serializedMessage, offset, serializedMessage.Length - offset));
-                _incomingTextMessageSignalBuffer.Enqueue(signal);
-            }
-            else
-            if ((int)SignalType.DestroyObject == signalId)
-            {
-                var signal = _messageSerializer.Deserialize<DestroyObjectSignal>(new ReadOnlySequence<byte>(serializedMessage, offset, serializedMessage.Length - offset));
+                var signal = _messageSerializer.Deserialize<DestroyObjectSignal>(data.Payload);
                 _incomingDestroyObjectSignalBuffer.Enqueue(signal);
             }
-            else
+            else if (data.SignalId == (int)SignalType.TextMessage)
             {
-                DevelopmentOnlyLogger.LogError($"[{nameof(LowFreqSignalStreamingChannel)}] The received message is unsupported format.");
+                var signal = _messageSerializer.Deserialize<TextMessageSignal>(data.Payload);
+                _incomingTextMessageSignalBuffer.Enqueue(signal);
             }
         }
     }

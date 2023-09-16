@@ -37,7 +37,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
             else
             if (signalType == SignalType.LowFreqSignal)
             {
-                return new LowFreqSignalStreamingChannel(channelId, transport, _eventFactory);
+                return new LowFreqSignalStreamingChannel(channelId, transport, _messageSerializer, _eventFactory);
             }
             else
             if (signalType == SignalType.HighFreqSignal)
