@@ -14,6 +14,7 @@ namespace Crossoverse.SignalStreaming.Infrastructure
     {
         public string Id => _signalStreamingChannel.Id;
         public bool IsConnected => _signalStreamingChannel.IsConnected;
+        public uint TransportClientId => _signalStreamingChannel.TransportClientId;
 
         public IBufferedSubscriber<bool> ConnectionStateSubscriber => _signalStreamingChannel.ConnectionStateSubscriber;
 

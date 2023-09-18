@@ -8,8 +8,9 @@ namespace Crossoverse.SignalStreaming
     public interface ISignalStreamingChannel : IDisposable
     {
         string Id { get; }
-
         bool IsConnected { get; }
+        uint TransportClientId { get;}
+
         IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }
 
         void Initialize();

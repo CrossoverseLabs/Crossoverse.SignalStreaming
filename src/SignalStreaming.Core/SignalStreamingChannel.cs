@@ -12,8 +12,8 @@ namespace Crossoverse.SignalStreaming
     public sealed class SignalStreamingChannel : ISignalStreamingChannel
     {
         public string Id => _id;
-
         public bool IsConnected => _isConnected;
+        public uint TransportClientId => (uint)_transport.ClientId;
 
         public IBufferedSubscriber<bool> ConnectionStateSubscriber { get; }
         public ISubscriber<(int SignalId, ReadOnlySequence<byte> Payload)> OnSignalReceived { get; }
